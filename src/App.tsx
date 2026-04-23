@@ -72,8 +72,15 @@ type Payload = {
   heroes: HeroEntry[];
 };
 
-function normalizePayload(raw: any): Payload {
-  if (raw?.heroes && Array.isArray(raw.heroes)) {
+const MIN_SHOW_HIGH_TIER_GAMES = 1;
+
+function normalizePayload(raw: unknown): Payload {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "heroes" in raw &&
+    Array.isArray((raw as Payload).heroes)
+  ) {
     return raw as Payload;
   }
   return { heroes: [] };
@@ -130,7 +137,7 @@ function IconBox({
 }) {
   return (
     <div className={`icon-box ${rarityClass(rarity)}`}>
-      {src ? <img src={src} alt={alt} /> : <div className="icon-fallback">?</div>}
+      {src ? <img src={src} alt={alt} /> : <div className="icon-fallback">-</div>}
     </div>
   );
 }
@@ -150,8 +157,18 @@ function Stat({
   );
 }
 
+function hasHighTierRecommendation(row: RecommendationRow) {
+  const games = row.metrics?.high_tier_games ?? 0;
+  return !!(
+    row.high_tier_augment?.id &&
+    row.high_tier_augment?.name &&
+    games >= MIN_SHOW_HIGH_TIER_GAMES
+  );
+}
+
 function RecommendationCard({ row }: { row: RecommendationRow }) {
   const metrics = row.metrics || {};
+  const showHighTier = hasHighTierRecommendation(row);
 
   return (
     <div className="recommend-card">
@@ -198,27 +215,54 @@ function RecommendationCard({ row }: { row: RecommendationRow }) {
       </div>
 
       <div className="recommend-block">
-        <div className="block-head">
-          <IconBox
-            src={row.high_tier_augment?.icon}
-            alt={row.high_tier_augment?.name || "高级海克斯"}
-            rarity={row.high_tier_augment?.rarity}
-          />
-          <div className="block-text">
-            <div className="block-kicker">高级海克斯 #{row.high_tier_rank ?? "-"}</div>
-            <div className="block-title">{row.high_tier_augment?.name || "-"}</div>
-            {row.high_tier_augment?.rarity ? (
-              <span className={rarityClass(row.high_tier_augment.rarity)}>
-                {rarityLabel(row.high_tier_augment.rarity)}
-              </span>
-            ) : null}
+        {showHighTier ? (
+          <>
+            <div className="block-head">
+              <IconBox
+                src={row.high_tier_augment?.icon}
+                alt={row.high_tier_augment?.name || "高级海克斯"}
+                rarity={row.high_tier_augment?.rarity}
+              />
+              <div className="block-text">
+                <div className="block-kicker">高级海克斯 #{row.high_tier_rank ?? "-"}</div>
+                <div className="block-title">{row.high_tier_augment?.name || "-"}</div>
+                {row.high_tier_augment?.rarity ? (
+                  <span className={rarityClass(row.high_tier_augment.rarity)}>
+                    {rarityLabel(row.high_tier_augment.rarity)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className="stat-grid">
+              <Stat label="样本" value={fmtNum(metrics.high_tier_games)} />
+              <Stat label="胜率" value={fmtPct01(metrics.high_tier_weighted_win_rate)} />
+              <Stat label="贝叶斯" value={fmtPct01(metrics.high_tier_bayes_score)} />
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              minHeight: 154,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <div className="block-kicker">高级海克斯</div>
+            <div className="block-title">暂无稳定高阶推荐</div>
+            <div
+              style={{
+                color: "#94a3b8",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              当前这条组合没有足够样本形成高阶海克斯结论，
+              先优先参考左侧的主海克斯和第一件核心装备。
+            </div>
           </div>
-        </div>
-        <div className="stat-grid">
-          <Stat label="样本" value={fmtNum(metrics.high_tier_games)} />
-          <Stat label="胜率" value={fmtPct01(metrics.high_tier_weighted_win_rate)} />
-          <Stat label="贝叶斯" value={fmtPct01(metrics.high_tier_bayes_score)} />
-        </div>
+        )}
       </div>
     </div>
   );
@@ -236,22 +280,33 @@ export default function App() {
       try {
         setLoading(true);
         setError("");
-        const res = await fetch("/recommendations_visual.json", { cache: "no-store" });
+
+        const res = await fetch("/recommendations_visual.json", {
+          cache: "no-store",
+        });
+
         if (!res.ok) {
           throw new Error(`加载 recommendations_visual.json 失败：${res.status}`);
         }
+
         const raw = await res.json();
         const normalized = normalizePayload(raw);
         setPayload(normalized);
+
         if (normalized.heroes.length > 0) {
           setSelectedHeroName(normalized.heroes[0].champion?.name || "");
         }
-      } catch (e: any) {
-        setError(e?.message || "加载失败");
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError("加载失败");
+        }
       } finally {
         setLoading(false);
       }
     }
+
     load();
   }, []);
 
@@ -289,10 +344,9 @@ export default function App() {
           <div>
             <div className="banner-kicker">KIWI 推荐助手 · 本地可视化</div>
             <h1>主海克斯 · 第一件核心装备 · 高级海克斯</h1>
-            <p>
-              现在这版已经按 recommendations_visual.json 的真实结构读取了。
-            </p>
+            <p>现在这版已经按 recommendations_visual.json 的真实结构读取了。</p>
           </div>
+
           <div className="banner-stats">
             <Stat label="英雄数" value={fmtNum(payload.meta?.hero_count)} />
             <Stat label="版本" value={payload.meta?.asset_version || "-"} />
@@ -319,7 +373,9 @@ export default function App() {
 
               <div className="hero-list">
                 {filteredHeroes.map((hero) => {
-                  const active = selectedHero?.champion?.name === hero.champion?.name;
+                  const active =
+                    selectedHero?.champion?.name === hero.champion?.name;
+
                   return (
                     <button
                       key={hero.champion?.id || hero.champion?.name}
@@ -328,13 +384,18 @@ export default function App() {
                     >
                       <div className="hero-avatar">
                         {hero.champion?.icon ? (
-                          <img src={hero.champion.icon} alt={hero.champion?.name || ""} />
+                          <img
+                            src={hero.champion.icon}
+                            alt={hero.champion?.name || ""}
+                          />
                         ) : null}
                       </div>
+
                       <div className="hero-meta">
                         <div className="hero-name">{hero.champion?.name || "-"}</div>
                         <div className="hero-sub">
-                          样本 {fmtNum(hero.summary?.hero_games)} · 胜率 {fmtPct01(hero.summary?.hero_weighted_win_rate)}
+                          样本 {fmtNum(hero.summary?.hero_games)} · 胜率{" "}
+                          {fmtPct01(hero.summary?.hero_weighted_win_rate)}
                         </div>
                       </div>
                     </button>
@@ -361,11 +422,26 @@ export default function App() {
                         <h2>{selectedHero.champion?.name || "-"}</h2>
                       </div>
                     </div>
+
                     <div className="hero-summary-stats">
-                      <Stat label="总样本" value={fmtNum(selectedHero.summary?.hero_games)} />
-                      <Stat label="加权样本" value={fmtNum(selectedHero.summary?.hero_weighted_games)} />
-                      <Stat label="加权胜率" value={fmtPct01(selectedHero.summary?.hero_weighted_win_rate)} />
-                      <Stat label="贝叶斯" value={fmtPct01(selectedHero.summary?.hero_bayes_score)} />
+                      <Stat
+                        label="总样本"
+                        value={fmtNum(selectedHero.summary?.hero_games)}
+                      />
+                      <Stat
+                        label="加权样本"
+                        value={fmtNum(selectedHero.summary?.hero_weighted_games)}
+                      />
+                      <Stat
+                        label="加权胜率"
+                        value={fmtPct01(
+                          selectedHero.summary?.hero_weighted_win_rate
+                        )}
+                      />
+                      <Stat
+                        label="贝叶斯"
+                        value={fmtPct01(selectedHero.summary?.hero_bayes_score)}
+                      />
                     </div>
                   </div>
 
