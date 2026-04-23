@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import "./App.css";
 
 type AssetEntry = {
@@ -7,6 +8,8 @@ type AssetEntry = {
   alias?: string;
   icon?: string;
   rarity?: string;
+  description_html?: string;
+  description_text?: string;
 };
 
 type ItemEntry = AssetEntry & {
@@ -27,6 +30,8 @@ type SupportAugmentEntry = {
   name?: string;
   icon?: string;
   rarity?: string;
+  description_html?: string;
+  description_text?: string;
   games?: number;
   weighted_win_rate?: number;
   bayes_score?: number;
@@ -220,6 +225,69 @@ function SmartImage({
   );
 }
 
+function HoverInfo({
+  title,
+  subtitle,
+  description,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const desc = (description || "").trim();
+
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      <div>{children}</div>
+
+      {open && desc ? (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: "calc(100% + 10px)",
+            zIndex: 999,
+            width: 320,
+            maxWidth: "min(320px, 70vw)",
+            padding: 12,
+            borderRadius: 14,
+            background: "rgba(2,6,23,0.96)",
+            border: "1px solid rgba(148,163,184,0.18)",
+            boxShadow: "0 18px 42px rgba(0,0,0,0.45)",
+            color: "#e2e8f0",
+            textAlign: "left",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+          {subtitle ? (
+            <div style={{ fontSize: 12, color: "#93c5fd", marginBottom: 8 }}>{subtitle}</div>
+          ) : null}
+          <div
+            style={{
+              fontSize: 13,
+              lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+              color: "#cbd5e1",
+            }}
+          >
+            {desc}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function IconBox({
   src,
   alt,
@@ -278,32 +346,38 @@ function Badge({
 
 function SupportAugmentChip({ item }: { item: SupportAugmentEntry }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 10px",
-        borderRadius: 12,
-        background: "rgba(15,23,42,0.45)",
-        border: "1px solid rgba(148,163,184,0.15)",
-      }}
+    <HoverInfo
+      title={item.name || "后续符文"}
+      subtitle={`样本 ${fmtNum(item.games)} · 胜率 ${fmtPct01(item.weighted_win_rate)}`}
+      description={item.description_text}
     >
-      <IconBox
-        src={item.icon}
-        alt={item.name || "后续符文"}
-        rarity={item.rarity}
-        id={item.id}
-        kind="augment"
-      />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{item.name || "-"}</div>
-        <div style={{ fontSize: 12, color: "#94a3b8" }}>
-          样本 {fmtNum(item.games)} · 胜率 {fmtPct01(item.weighted_win_rate)} ·{" "}
-          {confidenceLabel(item.confidence)}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "8px 10px",
+          borderRadius: 12,
+          background: "rgba(15,23,42,0.45)",
+          border: "1px solid rgba(148,163,184,0.15)",
+        }}
+      >
+        <IconBox
+          src={item.icon}
+          alt={item.name || "后续符文"}
+          rarity={item.rarity}
+          id={item.id}
+          kind="augment"
+        />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{item.name || "-"}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8" }}>
+            样本 {fmtNum(item.games)} · 胜率 {fmtPct01(item.weighted_win_rate)} ·{" "}
+            {confidenceLabel(item.confidence)}
+          </div>
         </div>
       </div>
-    </div>
+    </HoverInfo>
   );
 }
 
@@ -320,45 +394,57 @@ function BuildRow({ build }: { build: BuildEntry }) {
         border: "1px solid rgba(148,163,184,0.15)",
       }}
     >
-      <div>
-        <div className="block-kicker">第一件大件 #{build.build_rank ?? "-"}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-          <IconBox
-            src={build.first_item?.icon}
-            alt={build.first_item?.name || "第一件大件"}
-            id={build.first_item?.id}
-            kind="item"
-          />
-          <div>
-            <div className="block-title" style={{ fontSize: 16 }}>
-              {build.first_item?.name || "-"}
-            </div>
-            <div style={{ color: "#94a3b8", fontSize: 12 }}>
-              总价 {fmtNum(build.first_item?.total_gold)}
+      <HoverInfo
+        title={build.first_item?.name || "第一件大件"}
+        subtitle={`总价 ${fmtNum(build.first_item?.total_gold)} · 样本 ${fmtNum(build.games)}`}
+        description={build.first_item?.description_text}
+      >
+        <div>
+          <div className="block-kicker">第一件大件 #{build.build_rank ?? "-"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+            <IconBox
+              src={build.first_item?.icon}
+              alt={build.first_item?.name || "第一件大件"}
+              id={build.first_item?.id}
+              kind="item"
+            />
+            <div>
+              <div className="block-title" style={{ fontSize: 16 }}>
+                {build.first_item?.name || "-"}
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                总价 {fmtNum(build.first_item?.total_gold)}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </HoverInfo>
 
-      <div>
-        <div className="block-kicker">第二件大件</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-          <IconBox
-            src={build.second_item?.icon}
-            alt={build.second_item?.name || "第二件大件"}
-            id={build.second_item?.id}
-            kind="item"
-          />
-          <div>
-            <div className="block-title" style={{ fontSize: 16 }}>
-              {build.second_item?.name || "-"}
-            </div>
-            <div style={{ color: "#94a3b8", fontSize: 12 }}>
-              总价 {fmtNum(build.second_item?.total_gold)}
+      <HoverInfo
+        title={build.second_item?.name || "第二件大件"}
+        subtitle={`总价 ${fmtNum(build.second_item?.total_gold)}`}
+        description={build.second_item?.description_text}
+      >
+        <div>
+          <div className="block-kicker">第二件大件</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+            <IconBox
+              src={build.second_item?.icon}
+              alt={build.second_item?.name || "第二件大件"}
+              id={build.second_item?.id}
+              kind="item"
+            />
+            <div>
+              <div className="block-title" style={{ fontSize: 16 }}>
+                {build.second_item?.name || "-"}
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                总价 {fmtNum(build.second_item?.total_gold)}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </HoverInfo>
 
       <div style={{ minWidth: 180 }}>
         <div className="stat-grid">
@@ -397,28 +483,34 @@ function PrimaryGroupCard({ group }: { group: PrimaryBuildGroup }) {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <IconBox
-            src={group.primary_augment?.icon}
-            alt={group.primary_augment?.name || "主海克斯"}
-            rarity={group.primary_augment?.rarity}
-            id={group.primary_augment?.id}
-            kind="augment"
-          />
-          <div>
-            <div className="block-kicker">主海克斯 #{group.primary_rank ?? "-"}</div>
-            <div className="block-title">{group.primary_augment?.name || "-"}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-              {group.primary_augment?.rarity ? (
-                <Badge
-                  text={rarityLabel(group.primary_augment.rarity)}
-                  rarity={group.primary_augment.rarity}
-                />
-              ) : null}
-              <Badge text={confidenceLabel(group.confidence)} />
+        <HoverInfo
+          title={group.primary_augment?.name || "主海克斯"}
+          subtitle={`样本 ${fmtNum(group.games)} · 胜率 ${fmtPct01(group.weighted_win_rate)}`}
+          description={group.primary_augment?.description_text}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <IconBox
+              src={group.primary_augment?.icon}
+              alt={group.primary_augment?.name || "主海克斯"}
+              rarity={group.primary_augment?.rarity}
+              id={group.primary_augment?.id}
+              kind="augment"
+            />
+            <div>
+              <div className="block-kicker">主海克斯 #{group.primary_rank ?? "-"}</div>
+              <div className="block-title">{group.primary_augment?.name || "-"}</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                {group.primary_augment?.rarity ? (
+                  <Badge
+                    text={rarityLabel(group.primary_augment.rarity)}
+                    rarity={group.primary_augment.rarity}
+                  />
+                ) : null}
+                <Badge text={confidenceLabel(group.confidence)} />
+              </div>
             </div>
           </div>
-        </div>
+        </HoverInfo>
 
         <div className="stat-grid">
           <Stat label="样本" value={fmtNum(group.games)} />
@@ -471,49 +563,55 @@ function PrimaryGroupCard({ group }: { group: PrimaryBuildGroup }) {
 
 function HighTierCard({ item }: { item: HighTierEntry }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 14,
-        padding: 14,
-        borderRadius: 16,
-        background: "rgba(15,23,42,0.38)",
-        border: "1px solid rgba(148,163,184,0.15)",
-      }}
+    <HoverInfo
+      title={item.augment?.name || "高级海克斯"}
+      subtitle={`样本 ${fmtNum(item.games)} · 胜率 ${fmtPct01(item.weighted_win_rate)}`}
+      description={item.augment?.description_text}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <IconBox
-          src={item.augment?.icon}
-          alt={item.augment?.name || "高级海克斯"}
-          rarity={item.augment?.rarity}
-          id={item.augment?.id}
-          kind="augment"
-        />
-        <div>
-          <div className="block-kicker">高级海克斯 #{item.high_tier_rank ?? "-"}</div>
-          <div className="block-title" style={{ fontSize: 18 }}>
-            {item.augment?.name || "-"}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-            {item.augment?.rarity ? (
-              <Badge
-                text={rarityLabel(item.augment.rarity)}
-                rarity={item.augment.rarity}
-              />
-            ) : null}
-            <Badge text={confidenceLabel(item.confidence)} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          padding: 14,
+          borderRadius: 16,
+          background: "rgba(15,23,42,0.38)",
+          border: "1px solid rgba(148,163,184,0.15)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <IconBox
+            src={item.augment?.icon}
+            alt={item.augment?.name || "高级海克斯"}
+            rarity={item.augment?.rarity}
+            id={item.augment?.id}
+            kind="augment"
+          />
+          <div>
+            <div className="block-kicker">高级海克斯 #{item.high_tier_rank ?? "-"}</div>
+            <div className="block-title" style={{ fontSize: 18 }}>
+              {item.augment?.name || "-"}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+              {item.augment?.rarity ? (
+                <Badge
+                  text={rarityLabel(item.augment.rarity)}
+                  rarity={item.augment.rarity}
+                />
+              ) : null}
+              <Badge text={confidenceLabel(item.confidence)} />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="stat-grid">
-        <Stat label="样本" value={fmtNum(item.games)} />
-        <Stat label="胜率" value={fmtPct01(item.weighted_win_rate)} />
-        <Stat label="贝叶斯" value={fmtPct01(item.bayes_score)} />
+        <div className="stat-grid">
+          <Stat label="样本" value={fmtNum(item.games)} />
+          <Stat label="胜率" value={fmtPct01(item.weighted_win_rate)} />
+          <Stat label="贝叶斯" value={fmtPct01(item.bayes_score)} />
+        </div>
       </div>
-    </div>
+    </HoverInfo>
   );
 }
 
@@ -588,7 +686,7 @@ export default function App() {
           <div>
             <div className="banner-kicker">KIWI 推荐助手 · 本地可视化 v2</div>
             <h1>主海克斯路线 · 后续符文 · 英雄级高级海克斯</h1>
-            <p>现在这版读取的是 recommendations_visual_v2.json。</p>
+            <p>鼠标悬停在海克斯或装备上，可以查看完整描述。</p>
           </div>
 
           <div className="banner-stats">
